@@ -69,6 +69,8 @@
   const RAPID_WARN = 0.15;
   // Practice history rows shown at first, and added by each "Show more".
   const HISTORY_PAGE = 15;
+  // Steps after the current one that My learning path shows before "Show the rest".
+  const PATH_SOON = 2;
   const PATHWAY_STATE = { complete: 'Complete', active: 'In progress', new: 'Not started' };
   const ATTEMPT_LABEL = { diagnostic: 'Diagnostic', practice: 'Practice', quiz: 'Quiz', summative: 'Post-test' };
   // Tabs shown in a phone's bottom bar before the rest move into "More".
@@ -1216,25 +1218,57 @@
     const xai = E.explainPathway(analysis, G, seq, model);
     const xByOrder = {};
     xai.steps.forEach(x => { xByOrder[x.order] = x; });
-    const overview = steps.length ? `<div class="card xai-overview">
-      <div class="card-head">${cardTitle('bulb', student ? 'How your path was built' : 'Why this pathway', student ? 'In plain words' : 'Derived from the mastery, gap and load models')}
-        ${!student && !pathway.standard ? `<div class="chips">${xai.overview.added.length ? `<span class="chip">+${xai.overview.added.length} review/check</span>` : ''}${xai.overview.skipped.length ? `<span class="chip">−${xai.overview.skipped.length} already mastered</span>` : ''}</div>` : ''}</div>
-      <ul class="xai-list">${(student ? xai.overview.student : xai.overview.teacher).map(t => `<li>${esc(t)}</li>`).join('')}</ul>
-      <p class="hint" style="margin-top:8px">Open “Why this step?” on any step for the details behind it.</p></div>` : '';
-    const list = steps.length ? `<ol class="pathway">${steps.map(s => `
-      <li class="step ${s.kind}">
-        <span class="order">${s.order}</span>
-        <div>
-          <h3>${esc(student ? G.byId[s.skillId].name : skillName(s.skillId))}</h3>
-          <div class="why">${esc(student ? studentReason(s, diagnosis) : s.reason)}</div>
+    const overviewList = `<ul class="xai-list">${(student ? xai.overview.student : xai.overview.teacher).map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+      <p class="hint" style="margin-top:8px">Open “Why this step?” on any step for the details behind it.</p>`;
+    // Students see the explanation folded to one line until they ask for it.
+    const overview = !steps.length ? '' : student
+      ? `<details class="card xai-overview disclose"><summary>${cardTitle('bulb', 'How was my path built?', 'In plain words')}</summary>${overviewList}</details>`
+      : `<div class="card xai-overview">
+      <div class="card-head">${cardTitle('bulb', 'Why this pathway', 'Derived from the mastery, gap and load models')}
+        ${!pathway.standard ? `<div class="chips">${xai.overview.added.length ? `<span class="chip">+${xai.overview.added.length} review/check</span>` : ''}${xai.overview.skipped.length ? `<span class="chip">−${xai.overview.skipped.length} already mastered</span>` : ''}</div>` : ''}</div>
+      ${overviewList}</div>`;
+
+    const stepName = s => esc(student ? G.byId[s.skillId].name : skillName(s.skillId));
+    const stepBody = s => `<div class="why">${esc(student ? studentReason(s, diagnosis) : s.reason)}</div>
           <div class="meta"><span class="pill kind">${(student ? STUDENT_KIND : KIND_LABEL)[s.kind]}</span>${pathway.standard ? '' : bandPill(s.forecast.band, student ? null : s.forecast.load)}${student || pathway.standard ? '' : '<span class="hint">predicted load when reached</span>'}</div>
           <div class="activity">${icon('bulb', 16)}<span>${esc(student && !pathway.standard ? E.STUDENT_ACTIVITIES[s.format] : s.activity)}</span></div>
-          ${xaiPanel(xByOrder[s.order], student)}
-        </div>
+          ${xaiPanel(xByOrder[s.order], student)}`;
+    const practiseBtn = (s, primary) => `<button class="btn small${primary ? ' primary' : ''} no-print" type="button" data-action="practice" data-skill="${s.skillId}">${icon('play', 14)} Practise</button>`;
+    const fullStep = (s, cls = '') => `
+      <li class="step ${s.kind}${cls}">
+        <span class="order">${s.order}</span>
+        <div><h3>${stepName(s)}</h3>${stepBody(s)}</div>
         <div class="time">${s.minutes} min<small>${s.sessions > 1 ? `${s.sessions} sessions` : '1 session'}</small>
-          ${student ? `<button class="btn small${s.order === 1 ? ' primary' : ''} no-print" type="button" data-action="practice" data-skill="${s.skillId}">${icon('play', 14)} Practise</button>` : ''}</div>
-      </li>`).join('')}</ol>`
-      : `<div class="empty">${student ? 'You have finished your path. Well done!' : 'Nothing to schedule: the target skills are mastered.'}</div>`;
+          ${student ? practiseBtn(s, s.order === 1) : ''}</div>
+      </li>`;
+    // One line per step; the reason, format and "Why this step?" open on request.
+    const compactStep = s => `
+      <li class="step compact ${s.kind}">
+        <span class="order">${s.order}</span>
+        <div><h3>${stepName(s)}</h3>
+          <div class="why">${STUDENT_KIND[s.kind]} · ${esc(subjectTitle(learner.track, G.byId[s.skillId].subject))}</div>
+          <details class="step-more"><summary>Details</summary>${stepBody(s)}</details></div>
+        <div class="time">${s.minutes} min${practiseBtn(s, false)}</div>
+      </li>`;
+
+    /*
+     * Progressive disclosure for students: the step to do now in full, the
+     * next two as single lines, and the rest folded away until asked for.
+     * Printing shows every step. Teachers always see the whole list.
+     */
+    let list;
+    if (!steps.length) list = `<div class="empty">${student ? 'You have finished your path. Well done!' : 'Nothing to schedule: the target skills are mastered.'}</div>`;
+    else if (!student) list = `<ol class="pathway">${steps.map(s => fullStep(s)).join('')}</ol>`;
+    else {
+      const soon = steps.slice(1, PATH_SOON + 1), later = steps.slice(PATH_SOON + 1);
+      const laterMin = later.reduce((n, s) => n + s.minutes, 0);
+      list = `<h4 class="path-sec">Now</h4><ol class="pathway split">${fullStep(steps[0], ' current')}</ol>
+        ${soon.length ? `<h4 class="path-sec">Coming up</h4><ol class="pathway split">${soon.map(compactStep).join('')}</ol>` : ''}
+        ${later.length ? `<div class="later-wrap${S.pathAll ? '' : ' collapsed'}" id="pathLater"><h4 class="path-sec">Later</h4>
+            <ol class="pathway split">${later.map(compactStep).join('')}</ol></div>
+          <button class="btn path-toggle no-print" type="button" data-action="path-all" aria-expanded="${!!S.pathAll}" aria-controls="pathLater">
+            ${S.pathAll ? `Show fewer steps ${icon('chevron', 16).replace('class="ic"', 'class="ic flip"')}` : `Show the rest of my path · ${later.length} more step${later.length === 1 ? '' : 's'}, about ${hm(laterMin)} ${icon('chevron', 16)}`}</button>` : ''}`;
+    }
 
     const controls = `<div class="row no-print head-controls">${targetSelect(learner)}<button class="btn" type="button" data-action="print" style="flex:0 0 auto">Print</button></div>`;
     const header = student
@@ -1243,15 +1277,16 @@
         ? 'This learner is in the <b>standard-sequence</b> group, so they follow the course in its fixed order without remediation or load-based formats.'
         : 'Prerequisites come first, each remediation lands just before the first target it unblocks, and the format follows the load forecast for that step.', controls, 'Step 4 · Recommend');
 
-    return header + `
-      <div class="tiles">
+    const tiles = `<div class="tiles">
         ${tile('path', student ? 'Steps on my path' : 'Steps', steps.length, `${steps.length - remed} new topics`)}
         ${tile('alert', student ? 'Reviews and checks' : 'Remediation and checks', remed, student ? 'older skills to refresh' : 'for prerequisite gaps')}
         ${tile('clock', student ? 'Time needed' : 'Estimated time', steps.length ? hm(pathway.totalMinutes) : '—', 'longer for harder steps')}
         ${tile('load', student ? 'Challenging steps' : 'High-load steps', heavy, pathway.standard ? 'predicted' : 'with worked examples')}
-      </div>
-      ${overview}
-      <div class="card">${student ? pathStrip(analysis.progress) : ''}${list}</div>`;
+      </div>`;
+    // Students see the step to do first; the totals and explanation follow it.
+    return student
+      ? header + `<div class="card">${pathStrip(analysis.progress)}${list}</div>${overview}<div class="path-after">${tiles}</div>`
+      : header + tiles + overview + `<div class="card">${list}</div>`;
   }
 
   // ------------------------------------------------------------ account (both)
@@ -2173,6 +2208,13 @@
         break;
       }
       case 'history-more': S.historyShown += HISTORY_PAGE; render(); break;
+      case 'path-all': {
+        S.pathAll = !S.pathAll;
+        render();
+        const el = S.pathAll ? $('#pathLater') : $('[data-action="path-all"]');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: S.pathAll ? 'start' : 'center' });
+        break;
+      }
       case 'open-learner':
         S.learnerId = b.dataset.id; pref('learner', S.learnerId); setTab('pathway'); break;
       case 'export-outcomes': download('neurolearnx-outcomes.csv', outcomesCsv(), 'text/csv'); break;

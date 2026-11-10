@@ -336,6 +336,30 @@ td select { min-height: 32px; padding: 3px 6px; }
 .step .time { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .step .time small { display: block; font-weight: 500; color: var(--muted); }
 
+/* Student path, shown a little at a time: now, coming up, later (folded). */
+.path-sec { margin: 18px 0 8px; font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.card > .path-sec:first-child, .path-strip + .path-sec { margin-top: 0; }
+.pathway.split > .step:first-child:not(.current) .order { background: var(--surface-2); color: var(--ink-2); }
+.step.current { box-shadow: var(--shadow); }
+.step.compact { padding: 10px 14px; align-items: center; }
+.step.compact h3 { font-size: 0.95rem; }
+.step.compact .order { width: 28px; height: 28px; font-size: 0.82rem; }
+.step.compact .time { flex-direction: row; align-items: center; gap: 10px; font-size: 0.86rem; }
+details.step-more > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 0.8rem; font-weight: 700; color: var(--accent-strong); }
+details.step-more > summary::-webkit-details-marker { display: none; }
+details.step-more > summary::after { content: "▸"; transition: transform .15s; }
+details.step-more[open] > summary::after { transform: rotate(90deg); }
+.later-wrap.collapsed { display: none; }
+.card + .path-after, .card + details.card { margin-top: 18px; }
+.btn.path-toggle { width: 100%; margin-top: 14px; justify-content: center; }
+.ic.flip { transform: rotate(180deg); }
+details.disclose > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+details.disclose > summary::-webkit-details-marker { display: none; }
+details.disclose > summary::after { content: "▸"; color: var(--accent-strong); transition: transform .15s; }
+details.disclose[open] > summary { margin-bottom: 12px; }
+details.disclose[open] > summary::after { transform: rotate(90deg); }
+@media print { .later-wrap.collapsed { display: block !important; } }
+
 /* ---------------------------------------------------------------- gaps */
 .gap-list { display: flex; flex-direction: column; gap: 10px; }
 .gap-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; }
