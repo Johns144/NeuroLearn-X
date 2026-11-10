@@ -1008,3 +1008,67 @@ dialog.fallback[open] { position: fixed; inset: 16px; margin: auto; height: fit-
   .quiz-clock.low, .callout.warn { background: #fff4dd; border-color: rgba(250, 178, 25, 0.5); }
   .quiz-clock.critical, .rapid-tag, .feedback.no .why-tag { background: #fbe9e9; border-color: rgba(208, 59, 59, 0.4); }
 }
+
+/* ================================================================ teacher pages in plain language */
+.sub-h { margin: 16px 0 8px; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-2); }
+.card-head + .sub-h, .card > .sub-h:first-child { margin-top: 0; }
+
+/* Cognitive load: level guide, one topic in detail, topics by level, past sets */
+.band-guide { display: flex; flex-direction: column; }
+.band-row { display: grid; grid-template-columns: 130px 100px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--grid); font-size: 0.9rem; }
+.band-row:last-child { border-bottom: 0; }
+.load-result { display: flex; gap: 16px; align-items: center; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.load-big { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; min-width: 84px; }
+.load-big.low { color: var(--ink-2); }
+.load-big.optimal { color: var(--good-ink); }
+.load-big.high { color: #9a6700; }
+.load-big.overload { color: var(--critical-ink); }
+.level-group + .level-group { margin-top: 14px; }
+.level-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-btn { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 0.84rem; font-weight: 600; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline; }
+.chip-btn:hover { border-color: var(--accent); }
+.chip-btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong); }
+.past-list { display: flex; flex-direction: column; }
+.past-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--grid); font-size: 0.9rem; }
+.past-row:last-child { border-bottom: 0; }
+.past-vals { display: grid; grid-template-columns: auto auto; gap: 4px 8px; align-items: center; justify-items: start; }
+
+/* Skill gaps: plain lists and the key for the folded map */
+.simple-list { display: flex; flex-direction: column; }
+.simple-row { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--grid); font-size: 0.9rem; }
+.simple-row:last-child { border-bottom: 0; }
+.map-key { margin: 0 0 12px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; color: var(--ink-2); }
+
+/* Model check: one verdict per model */
+.verdicts { display: flex; flex-direction: column; gap: 10px; }
+.verdict { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2); }
+.verdict p { font-size: 0.88rem; color: var(--ink-2); margin-top: 2px; }
+.v-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; background: var(--neutral); }
+.verdict.good { background: #effaef; border-color: rgba(12, 163, 12, 0.3); }
+.verdict.good .v-dot { background: var(--good); }
+.verdict.warn { background: #fff8e8; border-color: rgba(250, 178, 25, 0.45); }
+.verdict.warn .v-dot { background: var(--warning); }
+
+@media (max-width: 640px) {
+  .band-row { grid-template-columns: auto minmax(0, 1fr); }
+  .band-row > :last-child { grid-column: 1 / -1; }
+  .load-result { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .past-row { grid-template-columns: minmax(0, 1fr); }
+  .chip-btn { padding: 7px 12px; }
+}
+
+/* Phones: a table too wide for the screen shows one card per row (see stackTables). */
+@media (max-width: 640px) {
+  table.stack { min-width: 0 !important; }
+  table.stack thead { display: none; }
+  table.stack, table.stack tbody, table.stack tr { display: block; width: 100%; }
+  table.stack tr { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 8px; background: var(--surface); }
+  table.stack td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 0; border: 0; text-align: right; white-space: normal; min-width: 0; }
+  table.stack td::before { content: attr(data-label); flex: none; max-width: 45%; text-align: left; font-size: 0.78rem; font-weight: 700; color: var(--ink-2); }
+  table.stack td:first-child { display: block; text-align: left; padding-bottom: 6px; margin-bottom: 2px; border-bottom: 1px solid var(--grid); }
+  table.stack td:first-child::before, table.stack td[data-label=""]::before { content: none; }
+  table.stack td[data-label=""] { justify-content: flex-end; }
+  table.stack td > select, table.stack td > .mastery-cell { flex: 0 1 60%; min-width: 0; }
+  table.stack td.empty { display: block; text-align: center; }
+}

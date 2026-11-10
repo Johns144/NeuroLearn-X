@@ -30,11 +30,11 @@
       { id: 'progress', icon: 'star', label: 'Progress', title: 'Pre-test and post-test progress' },
       { id: 'bank', icon: 'bank', label: 'Question bank', short: 'Questions', title: 'Question bank' },
       { id: 'record', icon: 'record', label: 'Performance', step: 1, title: 'Record performance' },
-      { id: 'load', icon: 'load', label: 'Cognitive load', step: 2, title: 'Predict cognitive load' },
-      { id: 'gaps', icon: 'gaps', label: 'Skill gaps', step: 3, title: 'Diagnose prerequisite gaps' },
+      { id: 'load', icon: 'load', label: 'Cognitive load', step: 2, title: 'Cognitive load' },
+      { id: 'gaps', icon: 'gaps', label: 'Skill gaps', step: 3, title: 'Skill gaps' },
       { id: 'pathway', icon: 'path', label: 'Pathways', step: 4, title: 'Recommend a pathway' },
       { id: 'outcomes', icon: 'chart', label: 'Outcomes', step: 5, title: 'Compare learning outcomes' },
-      { id: 'models', icon: 'target', label: 'Model check', title: 'Model accuracy' },
+      { id: 'models', icon: 'target', label: 'Model check', title: 'Model check' },
       { id: 'account', icon: 'user', label: 'Account', title: 'My account' }
     ]
   };
@@ -53,7 +53,7 @@
   // Foundation (Junior High) skills that the learner's track subjects build on.
   const foundationsOf = l => C.trackSkills(l && l.track).filter(id => G.byId[id].level === 'JHS');
   const PAAS = ['Very, very low', 'Very low', 'Low', 'Rather low', 'Neither low nor high', 'Rather high', 'High', 'Very high', 'Very, very high'];
-  const STATUS_LABEL = { mastered: 'Mastered', developing: 'Developing', gap: 'Gap', unverified: 'Unverified' };
+  // Teachers and students share the plain status names.
   const STUDENT_STATUS = { mastered: 'Mastered', developing: 'Almost there', gap: 'Needs practice', unverified: 'Not checked yet' };
   const STATUS_MARK = { mastered: '✓', developing: '~', gap: '!', unverified: '?' };
   const KIND_LABEL = { remediate: 'Remediation', verify: 'Check', learn: 'New skill', review: 'Spaced review' };
@@ -64,7 +64,19 @@
     high: { title: 'Challenging', text: 'Study the worked examples first, then try similar problems on your own.' },
     overload: { title: 'A lot at once', text: 'We split this into two short sessions. Review the basics first.' }
   };
-  const GROUP_LABEL = { adaptive: 'Adaptive', standard: 'Standard', '': 'Not in study' };
+  // Cognitive load in teachers' terms: each level's name and what to do about it.
+  const BAND_PLAIN = {
+    low: { title: 'Easy', range: 'under 30%', todo: 'Give harder or enrichment problems.' },
+    optimal: { title: 'Just right', range: '30–60%', todo: 'Regular practice with feedback.' },
+    high: { title: 'Hard', range: '60–80%', todo: 'Start with worked examples, then guided practice.' },
+    overload: { title: 'Too much', range: '80% or more', todo: 'Review the basics first, then teach it over two short sessions.' }
+  };
+  // The five load signals, as a teacher would say them.
+  const SIGNAL_PLAIN = {
+    intrinsic: 'The topic itself is demanding', time: 'Works slower than expected', error: 'Gets many answers wrong',
+    hints: 'Relies on hints', deficit: 'Weak in the earlier topics it needs'
+  };
+  const GROUP_LABEL ={ adaptive: 'Adaptive', standard: 'Standard', '': 'Not in study' };
   // Share of rapid guesses above which a result is flagged as possibly not reflecting ability.
   const RAPID_WARN = 0.15;
   // Practice history rows shown at first, and added by each "Show more".
@@ -121,8 +133,8 @@
   const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
   const isStudent = () => S.user && S.user.role === 'student';
   const pill = (cls, label) => `<span class="pill ${cls}"><span class="dot"></span>${esc(label)}</span>`;
-  const statusPill = st => pill(st, (isStudent() ? STUDENT_STATUS : STATUS_LABEL)[st]);
-  const bandPill = (band, load) => pill(band.key, `${isStudent() ? FEEL[band.key].title : band.label}${load != null ? ` · ${pct(load)}` : ''}`);
+  const statusPill = st => pill(st, STUDENT_STATUS[st]);
+  const bandPill = (band, load) => pill(band.key, `${isStudent() ? FEEL[band.key].title : BAND_PLAIN[band.key].title}${load != null ? ` · ${pct(load)}` : ''}`);
   const masteryBar = p => `<div class="mastery-cell"><div class="bar threshold"><span style="width:${(p * 100).toFixed(1)}%"></span></div><span class="num">${pct(p)}</span></div>`;
   const tile = (ic, label, value, sub) => `<div class="tile"><div class="tile-ic">${icon(ic)}</div><div><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div></div>`;
   const cardTitle = (ic, title, sub) => `<div class="card-title"><span class="badge-ic">${icon(ic, 18)}</span><div><h3>${title}</h3>${sub ? `<p>${sub}</p>` : ''}</div></div>`;
@@ -433,7 +445,26 @@
     }
     panel.innerHTML = (views[S.tab] || views.dashboard)(ctx);
     if (S.tab === 'outcomes') renderCohortStats();
+    stackTables();
   }
+
+  /*
+   * On a narrow screen a table too wide to fit becomes one card per row, each
+   * value labelled with its column heading, instead of scrolling sideways.
+   * Re-checked whenever the page is drawn or the screen turns.
+   */
+  function stackTables() {
+    panel.querySelectorAll('.table-wrap > table').forEach(t => {
+      const heads = [...t.querySelectorAll('thead th')].map(th => th.textContent.trim());
+      t.querySelectorAll('tbody tr').forEach(tr => [...tr.children].forEach((td, i) => {
+        if (!td.hasAttribute('data-label') && !td.hasAttribute('colspan')) td.setAttribute('data-label', heads[i] || '');
+      }));
+      t.classList.remove('stack');
+      if (window.innerWidth <= 640 && t.scrollWidth > t.parentElement.clientWidth + 2) t.classList.add('stack');
+    });
+  }
+  let stackTimer = null;
+  window.addEventListener('resize', () => { clearTimeout(stackTimer); stackTimer = setTimeout(stackTables, 150); });
 
   function noStudents() {
     return `<div class="card empty"><h2>No students yet</h2><p style="margin:8px 0 16px">Share your class code so students can join, or add student accounts yourself.</p>
@@ -458,7 +489,7 @@
     const track = learner && learner.track;
     const subs = C.trackSubjects(track);
     const sel = v => (S.target === v ? ' selected' : '');
-    return `<label>${isStudent() ? 'My goal' : 'Target'}
+    return `<label>${isStudent() ? 'My goal' : 'Goal'}
       <select data-bind="target">
         <option value="">${isStudent() ? 'All my subjects' : 'All of this student’s subjects'}</option>
         ${subs.map(id => `<option value="subj:${id}"${sel(`subj:${id}`)}>${esc(subjectName(track, id))} (whole subject)</option>`).join('')}
@@ -1203,7 +1234,7 @@
     const cf = x.counterfactual;
     const cfHtml = cf ? `<div class="cf">${icon('refresh', 14)}<span>${student
       ? `If you master <b>${esc(cf.name)}</b> first, this step is predicted to feel easier: ${pct(cf.from)} → ${pct(cf.to)} effort.`
-      : `Counterfactual: with ${cf.skillId} raised to 0.85 mastery, predicted load ${pct(cf.from)} → ${pct(cf.to)} (${cf.band.label}).`}</span></div>` : '';
+      : `What if: with <b>${esc(cf.name)}</b> brought to 85% mastery first, this step's cognitive load would drop from ${pct(cf.from)} to ${pct(cf.to)} (${BAND_PLAIN[cf.band.key].title.toLowerCase()}).`}</span></div>` : '';
     const conf = `<span class="chip">${x.confidence.answers ? `Based on ${x.confidence.answers} answer${x.confidence.answers === 1 ? '' : 's'}` : 'No answers yet'} · ${x.confidence.level} confidence</span>`;
     return `<details class="xai"><summary>${icon('bulb', 14)} Why this step?</summary>
       <ul class="xai-reasons">${reasons}</ul>${drivers}${cfHtml}<div style="margin-top:8px">${conf}</div></details>`;
@@ -1529,66 +1560,106 @@
       <span class="track"><span style="width:${Math.max(2, Math.min(100, ((v - lo) / (hi - lo)) * 100))}%;${v === best ? '' : 'background:#a9bad3'}"></span></span><span class="count">${fmt(v)}</span></div>`).join('')}</div>`;
   }
 
+  /*
+   * Model check for teachers: a plain verdict on each model first (green
+   * works, yellow be careful, grey not enough data yet), then the evidence
+   * behind each verdict folded underneath, technical names in brackets.
+   */
   function viewModels() {
     const d = S.modelsData;
     if (!d) {
       if (!S.modelsLoading) loadModels(false);
-      return head('Model accuracy', 'Checking the models…');
+      return head('How accurate are the estimates?', 'Checking…');
     }
     const b = d.bkt, cv = d.loadCv, m = d.method;
+    const f2 = v => (Number.isFinite(v) ? v.toFixed(2) : '—');
     const f3 = v => (Number.isFinite(v) ? v.toFixed(3) : '—');
     const data = b.data || {};
     const ordered = b.nAnswers ? b.nOrdered / b.nAnswers : 0;
-    const source = data.synthetic
-      ? `<div class="callout warn">${icon('alert', 16)}<span style="flex:1 1 0;min-width:0"><b>These figures come from the synthetic demo class.</b> Its made-up students never learn between answers, so no model can predict them well, and the numbers say nothing about real students. Real students' answers replace them once there are ${b.minAnswers} answers from ${b.minLearners} students.</span></div>`
-      : data.demoExcluded ? '<p class="hint" style="margin-bottom:10px">The synthetic demo class is left out: these figures are real students only.</p>' : '';
-    const orderNote = b.nAnswers ? `<p class="hint" style="margin-bottom:10px"><b>${pct(ordered)}</b> of these answers are stored in the order they were given (${b.nOrdered} of ${b.nAnswers}). ${ordered < 1 ? 'The rest were recorded before the order was saved, or entered by hand, and are rebuilt from each set’s totals.' : ''}</p>` : '';
-    const bktCard = `<div class="card"><div class="card-head">${cardTitle('target', 'Mastery model · Bayesian Knowledge Tracing', b.ready ? `Fitted on ${b.nAnswers} answers from ${b.nLearners} students${data.synthetic ? ', synthetic demo class included' : ''}` : 'Not enough answers yet to fit')}
-        ${pill(b.used === 'fitted' ? 'mastered' : 'unverified', b.used === 'fitted' ? 'Using fitted parameters' : 'Using default parameters')}</div>
-      ${source}${orderNote}
-      ${b.ready ? `<h3 style="margin:4px 0 8px">Predicting each next answer (cross-validated, ${b.folds} folds by student)</h3>
-        ${scoreBars([['BKT, fitted', b.metrics.fitted.auc, `log loss ${f3(b.metrics.fitted.logLoss)}`], ['BKT, default parameters', b.metrics.default.auc, `log loss ${f3(b.metrics.default.logLoss)}`], ['Percent correct so far (baseline)', b.metrics.baseline.auc, `log loss ${f3(b.metrics.baseline.logLoss)}`]], { lo: 0.5, hi: 1, fmt: v => `AUC ${f3(v)}`, better: 'high' })}
-        <p class="note">Each student's answers are predicted by a model fitted without that student, one answer at a time from the answers before it. AUC 0.5 is chance and 1 is perfect; the bars start at chance. Studies of BKT on real classroom data commonly report roughly 0.65 to 0.75. Fitted parameters are used only when they beat the defaults on held-out students.</p>`
-        : `<p class="muted">Fitting starts at ${b.minAnswers} answers from ${b.minLearners} students (now ${b.nAnswers} from ${b.nLearners}). Until then the default parameters are used.</p>`}
-      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Parameter</th><th>Meaning</th><th class="num">Default</th><th class="num">Fitted</th><th class="num">In use</th></tr></thead>
-        <tbody>${BKT_ROWS.map(([k, label, meaning]) => `<tr><td><b>${label}</b> <span class="hint">${k}</span></td><td class="muted" style="font-size:.84rem">${meaning}</td>
-          <td class="num">${f3(b.defaults[k])}</td><td class="num">${b.fitted ? f3(b.fitted[k]) : '—'}</td><td class="num"><b>${f3(b.params[k])}</b></td></tr>`).join('')}</tbody></table></div>
-      <p class="note">With the parameters in use, the learned part of a topic's mastery halves in about ${halfLife(b.params.pForget)} days after one practice day; each further practice day on a separate date slows forgetting again. Answers under ${d.rapidSec} seconds are left out of all of this.</p></div>`;
-    const loadCard = `<div class="card"><div class="card-head">${cardTitle('load', 'Cognitive-load model', cv.ready ? `${cv.n} effort ratings · ${cv.folds}-fold cross-validation ${cv.byLearner ? 'by student' : 'by rating'}` : 'Not enough ratings yet')}</div>
-      ${cv.ready ? `${scoreBars([['Calibrated model', cv.mae.calibrated * 100], ['Starting weights', cv.mae.prior * 100], ['Constant guess (average rating)', cv.mae.constant * 100]], { lo: 0, hi: Math.max(cv.mae.constant, cv.mae.prior, cv.mae.calibrated) * 100, fmt: v => `MAE ${v.toFixed(1)}`, better: 'low' })}
-        <p class="note">Mean absolute error between predicted load and the student's own 1–9 effort rating, in points on a 0–100 scale, on ratings the model was not fitted on. Lower is better.</p>`
-        : `<p class="muted">Cross-validation starts at ${cv.minSamples} effort ratings (now ${cv.n}).</p>`}</div>`;
+    const verdict = (tone, title, text) => `<div class="verdict ${tone}"><span class="v-dot" aria-hidden="true"></span><div><b>${title}</b><p>${text}</p></div></div>`;
+
+    // Mastery: does BKT predict the next answer better than percent correct?
+    let vMastery;
+    if (!b.ready) vMastery = verdict('wait', 'Mastery: using standard settings for now', `To tune itself to your school, NeuroLearn-X needs ${b.minAnswers} answers from ${b.minLearners} students (now ${b.nAnswers} from ${b.nLearners}). Until then it uses standard settings from research.`);
+    else if (data.synthetic) vMastery = verdict('warn', 'Mastery: only tested on sample data', 'These results come from the made-up demo class, so they say nothing about real students yet.');
+    else {
+      const fit = b.metrics.fitted.auc, base = b.metrics.baseline.auc;
+      vMastery = fit > base + 0.01
+        ? verdict('good', 'Mastery: better than a simple score', `It predicts students' next answers better than their percent correct does (accuracy score ${f2(fit)} against ${f2(base)}, where 0.5 is a coin flip and 1 is perfect).`)
+        : verdict('warn', 'Mastery: no better than a simple score yet', `Its accuracy score is ${f2(fit)}, against ${f2(base)} for plain percent correct (0.5 is a coin flip, 1 is perfect). More answers from real students should help.`);
+    }
+    // Load: is the estimate closer to students' own effort ratings than the class average?
+    let vLoad;
+    if (!cv.ready) vLoad = verdict('wait', 'Cognitive load: starting settings', `It checks itself once students have given ${cv.minSamples} effort ratings (now ${cv.n}).`);
+    else {
+      const cal = Math.round(cv.mae.calibrated * 100), avg = Math.round(cv.mae.constant * 100);
+      vLoad = cv.mae.calibrated < cv.mae.constant
+        ? verdict('good', 'Cognitive load: closer than a guess', `On average its estimate is ${cal} points (out of 100) from how hard students said a set felt. Always guessing the class average would be ${avg} points off.`)
+        : verdict('warn', 'Cognitive load: treat as a rough guide', `On average its estimate is ${cal} points (out of 100) from how hard students said a set felt, while always guessing the class average would be only ${avg} points off. It should improve as more students rate their effort.`);
+    }
+    // Rushed answers across everything students have answered.
     const kinds = [['diagnostic', 'Diagnostic'], ['posttest', 'Post-test'], ['practice', 'Practice']].filter(([k]) => d.rapid[k]);
-    const rapidCard = `<div class="card"><div class="card-head">${cardTitle('alert', 'Rapid guessing', `Answers in under ${d.rapidSec} seconds, your students`)}</div>
-      ${kinds.length ? `<div class="table-wrap"><table><thead><tr><th>Where</th><th class="num">Answers</th><th class="num">Rapid guesses</th><th class="num">Share</th></tr></thead>
-        <tbody>${kinds.map(([k, label]) => { const r = d.rapid[k]; return `<tr><td>${label}</td><td class="num">${r.answers}</td><td class="num">${r.rapid}</td><td class="num">${pct(r.answers ? r.rapid / r.answers : 0)}</td></tr>`; }).join('')}</tbody></table></div>
-        <p class="note">Rapid guesses still count in test scores, but not as evidence of mastery. A student with more than ${Math.round(RAPID_WARN * 100)}% is flagged on the Progress page.</p>` : '<div class="empty">No timed answers yet.</div>'}</div>`;
-    // Known-answer test: can the fitter recover parameters it was not told?
-    const methodCard = m ? `<div class="card"><div class="card-head">${cardTitle('check', 'Method check · simulated students with known parameters', `${m.learners} simulated students · ${m.answers} answers · not real data`)}</div>
-      <p class="muted" style="font-size:.9rem;margin-bottom:10px">Students are simulated from the parameters in the first column, then the fitter is given only their answers. It is fitted twice: on the answers in the order given, and on each set’s totals (how answers were stored before).</p>
-      <div class="table-wrap"><table><thead><tr><th>Parameter</th><th class="num">True value</th><th class="num">Fitted, answers in order</th><th class="num">Fitted, totals only</th></tr></thead>
-        <tbody>${BKT_ROWS.map(([k, label]) => `<tr><td><b>${label}</b> <span class="hint">${k}</span></td><td class="num"><b>${f3(m.truth[k])}</b></td>
+    const nAns = kinds.reduce((s, [k]) => s + d.rapid[k].answers, 0), nRapid = kinds.reduce((s, [k]) => s + d.rapid[k].rapid, 0);
+    const vRapid = !nAns ? verdict('wait', 'Rushed answers: none recorded yet', 'Answers will show here once students start the diagnostic or practice.')
+      : nRapid / nAns > RAPID_WARN
+        ? verdict('warn', `Rushed answers: ${pct(nRapid / nAns)} of answers`, `${nRapid} of ${nAns} answers were given in under ${d.rapidSec} seconds, too fast to have read the question. They are left out of mastery. Remind students to read each question.`)
+        : verdict('good', `Rushed answers: ${pct(nRapid / nAns)} of answers`, `Only ${nRapid} of ${nAns} answers were given in under ${d.rapidSec} seconds. These are left out of mastery.`);
+
+    const glance = `<div class="card"><div class="card-head">${cardTitle('check', 'At a glance', 'Green: working well · Yellow: be careful · Grey: not enough data yet')}</div>
+      ${data.synthetic ? `<div class="callout warn">${icon('alert', 16)}<span style="flex:1 1 0;min-width:0"><b>Most of this data is from the made-up demo class.</b> Real students' answers take over once there are ${b.minAnswers} answers from ${b.minLearners} students.</span></div>` : ''}
+      <div class="verdicts">${vMastery}${vLoad}${vRapid}</div></div>`;
+
+    const section = (ic, title, sub, body) => `<details class="card disclose"><summary>${cardTitle(ic, title, sub)}</summary>${body}</details>`;
+    const orderNote = b.nAnswers ? `<p class="hint" style="margin-bottom:10px"><b>${pct(ordered)}</b> of these answers are saved in the order they were given (${b.nOrdered} of ${b.nAnswers}).${ordered < 1 ? ' The rest were saved before that, or entered by hand, so their order is rebuilt from each set’s totals.' : ''}</p>` : '';
+    const masteryBody = `${data.demoExcluded ? '<p class="hint" style="margin-bottom:10px">The made-up demo class is left out: these figures are real students only.</p>' : ''}${orderNote}
+      ${b.ready ? `<h4 class="sub-h">Predicting each student's next answer</h4>
+        ${scoreBars([['Tuned to your school', b.metrics.fitted.auc], ['Standard settings', b.metrics.default.auc], ['Percent correct so far (simple score)', b.metrics.baseline.auc]], { lo: 0.5, hi: 1, fmt: v => `score ${f2(v)}`, better: 'high' })}
+        <p class="note">Each student is tested with settings learned from the other students only, one answer at a time. A score of 0.5 is a coin flip and 1 is perfect; studies of this kind of model in real classrooms commonly report about 0.65 to 0.75. The tuned settings are used only when they beat the standard ones.<br>
+          <span class="hint">Technical: Bayesian Knowledge Tracing; AUC, ${b.folds}-fold cross-validation by student; log loss ${f3(b.metrics.fitted.logLoss)} tuned, ${f3(b.metrics.default.logLoss)} standard, ${f3(b.metrics.baseline.logLoss)} simple score.</span></p>`
+        : `<p class="muted">Tuning starts at ${b.minAnswers} answers from ${b.minLearners} students (now ${b.nAnswers} from ${b.nLearners}).</p>`}
+      <h4 class="sub-h">The settings</h4>
+      <div class="table-wrap"><table><thead><tr><th>Setting</th><th class="num">Standard</th><th class="num">Tuned</th><th class="num">In use</th></tr></thead>
+        <tbody>${BKT_ROWS.map(([k, label, meaning]) => `<tr><td><b>${label}</b><div class="hint">${meaning}</div></td>
+          <td class="num">${f3(b.defaults[k])}</td><td class="num">${b.fitted ? f3(b.fitted[k]) : '—'}</td><td class="num"><b>${f3(b.params[k])}</b></td></tr>`).join('')}</tbody></table></div>
+      <p class="note">With the settings in use, what a student learned fades by half in about ${halfLife(b.params.pForget)} days without practice; each extra practice day slows the fading.</p>`;
+
+    const methodBody = m ? `<p class="muted" style="font-size:.9rem;margin-bottom:10px">A test with a known answer: made-up students are created from the true values below, then NeuroLearn-X sees only their answers and has to work the values out. It is tried twice: with answers in the order given, and with only each set’s totals.</p>
+      <div class="table-wrap"><table><thead><tr><th>Setting</th><th class="num">True value</th><th class="num">Found from answers in order</th><th class="num">Found from totals only</th></tr></thead>
+        <tbody>${BKT_ROWS.map(([k, label]) => `<tr><td><b>${label}</b></td><td class="num"><b>${f3(m.truth[k])}</b></td>
           <td class="num">${f3(m.ordered.params[k])}</td><td class="num">${f3(m.totals.params[k])}</td></tr>`).join('')}</tbody></table></div>
-      <p class="note">With answers in order, the estimates land close to the true values, and the fitted model predicts held-out students' answers with AUC ${f3(m.ordered.metrics.fitted.auc)} (percent-correct baseline ${f3(m.ordered.metrics.baseline.auc)}). From totals the order inside each set is lost and the estimates drift, for example finding forgetting the simulation does not have. That is why every answer is now saved in order.</p></div>` : '';
+      <p class="note">From answers in order, the values found are close to the true ones, and next answers are predicted with a score of ${f2(m.ordered.metrics.fitted.auc)} (simple score ${f2(m.ordered.metrics.baseline.auc)}). From totals only, the values drift, for example finding forgetting that is not there. That is why every answer is now saved in order.</p>` : '';
+
+    const loadBody = cv.ready ? `${scoreBars([['Tuned to your students', cv.mae.calibrated * 100], ['Starting settings', cv.mae.prior * 100], ['Always guess the class average', cv.mae.constant * 100]], { lo: 0, hi: Math.max(cv.mae.constant, cv.mae.prior, cv.mae.calibrated) * 100, fmt: v => `${v.toFixed(1)} points off`, better: 'low' })}
+        <p class="note">How far the estimate is, on average, from the effort students reported after a set (1–9, turned into 0–100), checked on students it did not learn from. Lower is better.<br>
+          <span class="hint">Technical: mean absolute error, ${cv.folds}-fold cross-validation ${cv.byLearner ? 'by student' : 'by rating'}, ${cv.n} effort ratings.</span></p>`
+      : `<p class="muted">The check starts at ${cv.minSamples} effort ratings (now ${cv.n}).</p>`;
+
+    const rapidBody = kinds.length ? `<div class="table-wrap"><table><thead><tr><th>Where</th><th class="num">Answers</th><th class="num">Rushed</th><th class="num">Share</th></tr></thead>
+        <tbody>${kinds.map(([k, label]) => { const r = d.rapid[k]; return `<tr><td>${label}</td><td class="num">${r.answers}</td><td class="num">${r.rapid}</td><td class="num">${pct(r.answers ? r.rapid / r.answers : 0)}</td></tr>`; }).join('')}</tbody></table></div>
+        <p class="note">Rushed answers (under ${d.rapidSec} seconds) still count in test scores, but not toward mastery. A student who rushes more than ${Math.round(RAPID_WARN * 100)}% of answers is flagged on the Progress page.</p>` : '<div class="empty">No answers yet.</div>';
 
     // Fitted values sitting on a search limit: the data could not pin them down.
     const atLimit = b.fitted ? BKT_ROWS.filter(([k]) => E.BKT_BOUNDS[k].some(edge => Math.abs(b.fitted[k] - edge) < 1e-6) && !(k === 'pForget' && b.fitted[k] === 0)).map(r => r[1]) : [];
     const limits = [
-      data.synthetic && 'Not enough real student data yet: the accuracy above is measured mostly on synthetic students.',
-      atLimit.length && `${atLimit.join(' and ')} ${atLimit.length === 1 ? 'was' : 'were'} fitted at the edge of the allowed range, a sign the data cannot pin ${atLimit.length === 1 ? 'it' : 'them'} down.`,
-      b.nAnswers && ordered < 1 && `${pct(1 - ordered)} of answers are rebuilt from set totals, which distorts the fitted parameters (see the method check).`,
-      'The diagnostic and post-test ask one question per topic, so for many topics the model starts from a single answer.',
-      'One set of parameters is fitted for every topic: harder topics are not modelled separately.',
-      'Answers after a hint count like other answers. They are recorded separately so their effect can be studied.',
-      'With few students, cross-validated scores vary a lot: report the number of students and answers with every figure.',
-      'The load model learns from students’ own 1–9 effort ratings, which are self-reports.'
+      data.synthetic && 'Not enough real student data yet: most results come from the made-up demo class.',
+      atLimit.length && `The ${atLimit.join(' and ')} setting${atLimit.length === 1 ? '' : 's'} hit the edge of the allowed range: the data cannot pin ${atLimit.length === 1 ? 'it' : 'them'} down yet.`,
+      b.nAnswers && ordered < 1 && `${pct(1 - ordered)} of answers were saved before their order was kept, which makes the tuned settings less reliable (see the known-answer test).`,
+      'The diagnostic and post-test ask one question per topic, so for many topics the estimate starts from a single answer.',
+      'The same settings are used for every topic: harder topics are not treated separately.',
+      'Answers given after a hint count like other answers. Hint use is saved so its effect can be studied.',
+      'With few students, these results can change a lot: always mention how many students and answers they are based on.',
+      'Cognitive load is learned from how hard students say a set felt, which is their own opinion.'
     ].filter(Boolean);
-    const limitsCard = `<div class="card"><div class="card-head">${cardTitle('alert', 'Known limitations', 'Say these before anyone asks')}</div>
-      <ul class="xai-list">${limits.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
 
-    return head('Model accuracy', 'How well the models predict answers and effort ratings they were not fitted on. Models are fitted on every student in the school.',
-      `<div class="row-actions"><span class="hint" style="align-self:center">Fitted ${esc(new Date(d.computedAt).toLocaleString())}</span><button class="btn small" type="button" data-action="models-refit">${icon('refresh', 14)} Refit now</button></div>`) +
-      bktCard + methodCard + `<div class="grid halves">${loadCard}${rapidCard}</div>` + limitsCard;
+    return head('How accurate are the estimates?', 'NeuroLearn-X tests itself on students it did not learn from. Start with the summary; open any section below for the evidence.',
+      `<div class="row-actions"><span class="hint" style="align-self:center">Checked ${esc(new Date(d.computedAt).toLocaleString())}</span><button class="btn small" type="button" data-action="models-refit">${icon('refresh', 14)} Check again</button></div>`) +
+      glance +
+      section('target', 'Mastery: the details', b.ready ? `${b.nAnswers} answers from ${b.nLearners} students` : 'Not enough answers yet', masteryBody) +
+      (m ? section('check', 'Known-answer test', `${m.learners} made-up students · shows the method works`, methodBody) : '') +
+      section('load', 'Cognitive load: the details', cv.ready ? `${cv.n} effort ratings` : 'Not enough ratings yet', loadBody) +
+      section('alert', 'Rushed answers: the details', `Answers in under ${d.rapidSec} seconds`, rapidBody) +
+      `<div class="card"><div class="card-head">${cardTitle('alert', 'Known limitations', 'Say these before anyone asks')}</div>
+        <ul class="xai-list">${limits.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
   }
 
   // ------------------------------------------------------------ teacher: classes
@@ -1884,52 +1955,69 @@
   }
 
   // ------------------------------------------------------------ teacher: load
+  /*
+   * Cognitive load, in a teacher's terms: what the levels mean and what to do,
+   * one topic checked in detail, and every topic grouped by level. How the
+   * estimate is made, and how it compared with the student's own ratings,
+   * are folded away for those who want them.
+   */
   function viewLoad({ model, analysis, learner }) {
     const P = E.PRIOR_MODEL;
-    const status = model.calibrated
-      ? `Calibrated on <b>${model.n}</b> effort ratings across the school. Mean absolute error vs. ratings it was fitted on: <b>${pct(model.mae)}</b> (starting weights: ${pct(model.priorMae)}). <button class="btn link" type="button" data-action="go" data-tab="models">Cross-validated error</button>`
-      : `Using starting weights. Calibration begins at 12 effort ratings (now ${model.n}).`;
-    const weights = E.FEATURES.map(f => `<tr><td>${esc(f.label)}</td><td class="num">${P.w[f.key].toFixed(2)}</td><td class="num"><b>${model.w[f.key].toFixed(2)}</b></td></tr>`).join('') +
-      `<tr><td class="muted">Intercept</td><td class="num">${P.bias.toFixed(2)}</td><td class="num"><b>${model.bias.toFixed(2)}</b></td></tr>`;
     const seq = seqOf(learner), scope = C.trackSkills(learner.track);
     const open = seq.filter(id => E.masteryStatus(analysis.mastery[id]) !== 'mastered');
     if (!S.forecastSkill || !scope.includes(S.forecastSkill)) S.forecastSkill = open[0] || seq[0];
     const fc = analysis.forecasts[S.forecastSkill];
-    const forecastRows = seq.map(id => {
-      const m = analysis.mastery[id], fo = analysis.forecasts[id];
-      return `<tr${id === S.forecastSkill ? ' style="background:var(--accent-soft)"' : ''}><td><b>${id}</b> ${esc(G.byId[id].short)}</td><td>${statusPill(E.masteryStatus(m))}</td><td>${bandPill(fo.band, fo.load)}</td></tr>`;
-    }).join('');
+    const plain = BAND_PLAIN[fc.band.key];
+    const name = esc(firstName(learner.name));
+
+    const guide = `<div class="band-guide">${E.LOAD_BANDS.map(b => `<div class="band-row"><span>${pill(b.key, BAND_PLAIN[b.key].title)}</span>
+      <span class="hint">${BAND_PLAIN[b.key].range}</span><span>${esc(BAND_PLAIN[b.key].todo)}</span></div>`).join('')}</div>`;
+
+    // What pushes this topic's estimate up, as shares of the total push.
+    const pushes = fc.contributions.filter(c => c.contribution > 0.05).sort((a, b) => b.contribution - a.contribution);
+    const pushTotal = pushes.reduce((s, c) => s + c.contribution, 0) || 1;
+    const why = pushes.length ? `<div class="drivers">${pushes.map(c => `<div class="driver"><span class="d-label">${esc(SIGNAL_PLAIN[c.key])}</span>
+        <span class="d-bar"><span style="width:${Math.round((c.contribution / pushTotal) * 100)}%"></span></span><span class="d-val">${Math.round((c.contribution / pushTotal) * 100)}%</span></div>`).join('')}</div>`
+      : '<p class="muted">Nothing in particular makes this topic hard for this student.</p>';
+    const check = `<div class="card" id="loadCheck"><div class="card-head">${cardTitle('target', 'Check one topic', 'Before you teach it')}</div>
+      <label style="margin-bottom:14px">Topic<select data-bind="forecastSkill">${scope.map(id => `<option value="${id}"${id === S.forecastSkill ? ' selected' : ''}>${esc(G.byId[id].name)}</option>`).join('')}</select></label>
+      <div class="load-result"><div class="load-big ${fc.band.key}">${pct(fc.load)}</div>
+        <div><div>${bandPill(fc.band)}</div><p style="margin-top:6px"><b>What to do:</b> ${esc(plain.todo)}</p></div></div>
+      <h4 class="sub-h">Why it is rated this way</h4>${why}</div>`;
+
+    // Every topic of the track, hardest level first, mastered ones apart.
+    const groups = [...E.LOAD_BANDS].reverse().map(b => ({ b, ids: open.filter(id => analysis.forecasts[id].band.key === b.key) })).filter(g => g.ids.length);
+    const done = seq.filter(id => !open.includes(id));
+    const chip = id => `<button class="chip-btn${id === S.forecastSkill ? ' on' : ''}" type="button" data-action="forecast-pick" data-skill="${id}">${esc(G.byId[id].short)} <span class="hint">${pct(analysis.forecasts[id].load)}</span></button>`;
+    const byLevel = `<div class="card"><div class="card-head">${cardTitle('path', `All ${esc(C.trackLabel(learner.track))} topics by level`, 'Tap a topic to check it above')}</div>
+      ${groups.map(g => `<div class="level-group"><div class="level-head">${pill(g.b.key, BAND_PLAIN[g.b.key].title)}<span class="hint">${g.ids.length} topic${g.ids.length === 1 ? '' : 's'}</span></div>
+        <div class="chip-row">${g.ids.map(chip).join('')}</div></div>`).join('') || '<div class="empty">Every topic is mastered.</div>'}
+      ${done.length ? `<p class="hint" style="margin-top:10px">Already mastered, not shown: ${done.length} topic${done.length === 1 ? '' : 's'}.</p>` : ''}</div>`;
+
+    const status = model.calibrated
+      ? `Tuned to this school using <b>${model.n}</b> effort ratings from students. <button class="btn link" type="button" data-action="go" data-tab="models">How accurate is it?</button>`
+      : `Using research-based starting settings. It tunes itself once students have given 12 effort ratings (now ${model.n}).`;
+    const weights = E.FEATURES.map(f => `<tr><td>${esc(SIGNAL_PLAIN[f.key])}<div class="hint">${esc(f.label)}</div></td><td class="num">${P.w[f.key].toFixed(2)}</td><td class="num"><b>${model.w[f.key].toFixed(2)}</b></td></tr>`).join('') +
+      `<tr><td class="muted">Starting point (intercept)</td><td class="num">${P.bias.toFixed(2)}</td><td class="num"><b>${model.bias.toFixed(2)}</b></td></tr>`;
+    const how = `<details class="card disclose"><summary>${cardTitle('bulb', 'How the estimate is made', 'For those who want the details')}</summary>
+      <p style="font-size:.9rem">${status}</p>
+      <p class="muted" style="font-size:.88rem;margin-top:8px">Five signals are weighed and combined into one percentage (a logistic model). A bigger weight means that signal matters more. After each set, students rate their mental effort from 1 to 9, and the weights are adjusted so the estimates match those ratings.</p>
+      <div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Signal</th><th class="num">Starting weight</th><th class="num">Weight now</th></tr></thead><tbody>${weights}</tbody></table></div></details>`;
+
     const rows = [...analysis.rows].reverse().map(r => {
       const a = r.attempt;
-      const diff = r.rated == null ? '' : r.prediction.load - r.rated;
-      return `<tr><td class="num">${esc(a.date)}</td><td><b>${a.skillId}</b> <span class="muted">${esc(G.byId[a.skillId].short)}</span></td>
-        <td class="num">${pct(a.itemsCorrect / a.itemsTotal)}</td><td class="num">${f1(Math.pow(2, r.x.time))}×</td><td class="num">${a.hints}</td>
-        <td>${bandPill(r.prediction.band, r.prediction.load)}</td>
-        <td class="num">${r.rated == null ? '<span class="muted">—</span>' : `${a.effort}/9 · ${pct(r.rated)}`}</td>
-        <td class="num">${diff === '' ? '' : `${diff >= 0 ? '+' : '−'}${Math.round(Math.abs(diff) * 100)}`}</td></tr>`;
-    }).join('') || '<tr><td colspan="8" class="empty">No attempts yet.</td></tr>';
+      const diff = r.rated == null ? null : Math.round((r.prediction.load - r.rated) * 100);
+      return `<div class="past-row"><div><b>${esc(G.byId[a.skillId].short)}</b><div class="hint">${esc(a.date)} · ${a.itemsCorrect}/${a.itemsTotal} right · ${f1(Math.pow(2, r.x.time))}× expected time · ${a.hints} hint${a.hints === 1 ? '' : 's'}</div></div>
+        <div class="past-vals"><span class="hint">Estimated</span>${bandPill(r.prediction.band, r.prediction.load)}
+          <span class="hint">Student said</span>${r.rated == null ? '<span class="muted">—</span>' : `<b>${a.effort}/9</b> <span class="hint">(${pct(r.rated)}${diff ? `, ${diff > 0 ? 'estimate ' + diff + ' higher' : 'estimate ' + -diff + ' lower'}` : ''})</span>`}</div></div>`;
+    }).join('');
+    const past = `<details class="card disclose"><summary>${cardTitle('record', 'Past sets: estimate vs. what the student said', `${analysis.rows.length} set${analysis.rows.length === 1 ? '' : 's'}`)}</summary>
+      ${rows ? `<div class="past-list">${rows}</div>` : '<div class="empty">No sets yet.</div>'}</details>`;
 
-    return head(`Cognitive load for ${esc(learner.name)}`,
-      'A logistic model turns five signals into a 0–100% load estimate. It starts from theory-based weights and is re-fitted to students’ effort ratings from every diagnostic and practice set.', '', 'Step 2 · Predict') + `
-      <div class="grid two">
-        <div class="card"><div class="card-head">${cardTitle('load', 'Load model')}</div>
-          <p style="font-size:.9rem">${status}</p>
-          <div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Signal</th><th class="num">Start</th><th class="num">Current</th></tr></thead><tbody>${weights}</tbody></table></div>
-          <div class="legend" style="margin-top:14px">${E.LOAD_BANDS.map((b, i) => `<span>${pill(b.key, b.label)} ${['< 30%', '30–60%', '60–80%', '≥ 80%'][i]}</span>`).join('')}</div></div>
-        <div class="card">
-          <div class="card-head">${cardTitle('target', 'Forecast before starting', 'Current mastery plus this student’s pace and hint use')}
-            <label class="head-controls">Skill<select data-bind="forecastSkill">${scope.map(id => `<option value="${id}"${id === S.forecastSkill ? ' selected' : ''}>${esc(skillName(id))}</option>`).join('')}</select></label></div>
-          <div class="row" style="align-items:center;margin-bottom:6px"><div style="flex:0 0 auto">${bandPill(fc.band, fc.load)}</div>
-            <div class="muted" style="font-size:.86rem;flex:1 1 240px">${esc(fc.band.note)}. Suggested format: ${esc(E.ACTIVITIES[fc.band.key])}</div></div>
-          ${V.contributions(fc.contributions)}</div>
-      </div>
-      <div class="grid halves">
-        <div class="card"><div class="card-head">${cardTitle('path', `Forecast across ${esc(C.trackLabel(learner.track))} subjects`)}</div>
-          <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Mastery</th><th>Predicted load</th></tr></thead><tbody>${forecastRows}</tbody></table></div></div>
-        <div class="card"><div class="card-head">${cardTitle('record', 'Load on recorded attempts', 'Δ = predicted minus self-rated, in points')}</div>
-          <div class="table-wrap"><table><thead><tr><th>Date</th><th>Skill</th><th class="num">Score</th><th class="num">Time</th><th class="num">Hints</th><th>Predicted</th><th class="num">Rated</th><th class="num">Δ</th></tr></thead>
-            <tbody>${rows}</tbody></table></div></div>
-      </div>`;
+    return head(`How hard will each topic feel for ${name}?`,
+      `NeuroLearn-X estimates the mental effort (cognitive load) each topic will take ${name}, from 0% to 100%. It looks at how demanding the topic is, how ${name} has been doing, and how ${name} rated their own effort after each set.`, '', 'Step 2 · Cognitive load') + `
+      <div class="card"><div class="card-head">${cardTitle('load', 'What the levels mean')}</div>${guide}</div>
+      ${check}${byLevel}${how}${past}`;
   }
 
   // ------------------------------------------------------------ teacher: gaps
@@ -1960,27 +2048,59 @@
     diagnosis.gaps.filter(g => g.isRoot).forEach(g => {
       G.skills.forEach(s => { if (relevant.has(s.id) && s.prereqs.includes(g.id)) hot.add(`${g.id}>${s.id}`); });
     });
-    const gapCards = diagnosis.gaps.length ? diagnosis.gaps.map(g => `
-      <div class="gap-item${g.isRoot ? ' root' : ''}">
-        <h3>${esc(skillName(g.id))} ${statusPill(g.status)} ${g.isRoot ? '<span class="chip">Root cause</span>' : ''}</h3>
-        <p>${g.status === 'unverified' ? 'Never assessed and not implied by later work. Give a short check before teaching what depends on it.' : `Mastery ${pct(g.p)} from ${g.items} items, below the 60% developing threshold.`}${g.isRoot ? '' : ' Fix the root gaps beneath it first.'}</p>
-        <div class="chips"><span class="hint">Blocks ${g.impact}:</span>${g.blocks.map(b => `<span class="chip">${b}</span>`).join('')}</div>
-      </div>`).join('')
-      : `<div class="empty">${diagnosis.targets.length ? 'No prerequisite gaps.' : 'Every target skill is already mastered.'}</div>`;
-    const targetRows = diagnosis.targets.map(t => `<tr><td><b>${t.id}</b> ${esc(G.byId[t.id].short)}</td><td>${statusPill(t.status)}</td>
-      <td>${t.blockedBy.length ? t.blockedBy.map(b => `<span class="chip">${b}</span>`).join(' ') : '<span class="muted">Ready to learn</span>'}</td></tr>`).join('');
-    return head(`Prerequisite gaps for ${esc(learner.name)}`,
-      `${learner.diagnosticDone ? '' : '<b>Diagnostic not taken yet</b>, so most skills are unverified. '}Each target skill’s prerequisites are traced back through the curriculum graph. A root gap has no gap beneath it, so fixing it first unblocks the most.`,
-      `<div class="head-controls">${targetSelect(learner)}</div>`, 'Step 3 · Diagnose') + `
-      <div class="card"><div class="card-head">${cardTitle('gaps', `Prerequisite graph · ${esc(C.trackLabel(learner.track))}`, 'One lane per subject · bold outline = target · red links = what a root gap holds back')}</div>
-        <div class="legend">${['mastered', 'developing', 'gap', 'unverified'].map(s => `<span>${statusPill(s)}</span>`).join('')}</div>
-        <div class="chart-scroll">${V.dag({ graph: G, mastery, status, relevant, targets, hotEdges: hot, lanes: dagLanes(learner, relevant) })}</div>
-        <p class="hint" style="margin-top:8px">Point at a topic to highlight what it needs and what it unlocks.</p></div>
-      <div class="grid halves">
-        <div class="card"><div class="card-head">${cardTitle('alert', 'Gaps, root causes first', `${diagnosis.gaps.filter(g => g.isRoot).length} root · ${diagnosis.gaps.length} total`)}</div><div class="gap-list">${gapCards}</div></div>
-        <div class="card"><div class="card-head">${cardTitle('target', 'Target skills')}</div>
-          ${diagnosis.targets.length ? `<div class="table-wrap"><table><thead><tr><th>Skill</th><th>Status</th><th>Blocked by</th></tr></thead><tbody>${targetRows}</tbody></table></div>` : '<div class="empty">Nothing left to learn in this target set.</div>'}</div>
-      </div>`;
+    /*
+     * In a teacher's words: the weak topics with no weak topic beneath them
+     * ("fix these first", the root gaps), the other weak topics and which of
+     * those they wait on, and which goal topics can be taught now. The full
+     * prerequisite map is folded away: it needs a wide screen.
+     */
+    const short = id => esc(G.byId[id].short);
+    const chipList = (ids, max = 6) => `${ids.slice(0, max).map(id => `<span class="chip">${short(id)}</span>`).join('')}${ids.length > max ? `<span class="hint">and ${ids.length - max} more</span>` : ''}`;
+    const roots = diagnosis.gaps.filter(g => g.isRoot), others = diagnosis.gaps.filter(g => !g.isRoot);
+    const notMastered = diagnosis.targets.filter(t => t.status !== 'mastered');
+    const ready = notMastered.filter(t => !t.blockedBy.length), waiting = notMastered.filter(t => t.blockedBy.length);
+    const name = esc(firstName(learner.name));
+
+    const fixFirst = roots.length ? `<div class="gap-list">${roots.map(g => `
+      <div class="gap-item root">
+        <h3>${esc(G.byId[g.id].name)} ${statusPill(g.status)}</h3>
+        <p>${g.status === 'unverified' ? 'Give a short quiz on it before teaching the topics that need it.' : `${name} has about ${pct(g.p)} mastery here. Review it before moving on.`}</p>
+        <div class="chips"><span class="hint">Fixing it helps with ${g.impact} topic${g.impact === 1 ? '' : 's'}:</span>${chipList(g.blocks)}</div>
+      </div>`).join('')}</div>`
+      : `<div class="empty">${diagnosis.targets.length ? `Nothing to fix first. ${name}'s earlier topics are solid.` : 'Every goal topic is already mastered.'}</div>`;
+    const alsoWeak = others.length ? `<div class="card"><div class="card-head">${cardTitle('gaps', 'Also weak', 'These should improve once the topics above are fixed')}</div>
+      <div class="simple-list">${others.map(g => {
+        const under = roots.filter(r => G.ancestors(g.id).has(r.id)).map(r => r.id);
+        return `<div class="simple-row"><div><b>${esc(G.byId[g.id].name)}</b>${under.length ? `<div class="chips" style="margin-top:4px"><span class="hint">Needs first:</span>${chipList(under, 4)}</div>` : ''}</div>${statusPill(g.status)}</div>`;
+      }).join('')}</div></div>` : '';
+    const goals = `<div class="card"><div class="card-head">${cardTitle('target', 'Goal topics', 'From the goal chosen above')}</div>
+      ${notMastered.length ? `${ready.length ? `<h4 class="sub-h">Ready to teach now</h4><div class="chips">${chipList(ready.map(t => t.id), 40)}</div>` : ''}
+        ${waiting.length ? `<h4 class="sub-h">Waiting on earlier topics</h4><div class="simple-list">${waiting.map(t => `<div class="simple-row"><div><b>${esc(G.byId[t.id].name)}</b>
+          <div class="chips" style="margin-top:4px"><span class="hint">Needs first:</span>${chipList(t.blockedBy, 4)}</div></div></div>`).join('')}</div>` : ''}`
+        : '<div class="empty">Every goal topic is already mastered.</div>'}
+      ${diagnosis.targets.length > notMastered.length ? `<p class="hint" style="margin-top:10px">Already mastered: ${diagnosis.targets.length - notMastered.length} topic${diagnosis.targets.length - notMastered.length === 1 ? '' : 's'}.</p>` : ''}</div>`;
+
+    const map = `<details class="card disclose"><summary>${cardTitle('gaps', 'Show the prerequisite map', 'Every topic and what it builds on')}</summary>
+      <ul class="map-key">
+        <li>Each box is a topic, coloured by how well ${name} knows it. One row per subject.</li>
+        <li>Arrows point from a topic to the topics that build on it. <b style="color:var(--critical-ink)">Red arrows</b> start at a “fix first” topic.</li>
+        <li>A thick outline marks a goal topic. Point at or tap a topic to highlight what it needs and unlocks.</li>
+      </ul>
+      <div class="legend">${['mastered', 'developing', 'gap', 'unverified'].map(s => `<span>${statusPill(s)}</span>`).join('')}</div>
+      <p class="hint mobile-only" style="margin-bottom:6px">The map is wide: scroll sideways to see all of it.</p>
+      <div class="chart-scroll">${V.dag({ graph: G, mastery, status, relevant, targets, hotEdges: hot, lanes: dagLanes(learner, relevant) })}</div></details>`;
+
+    return head(`What is holding ${name} back?`,
+      `${learner.diagnosticDone ? '' : `<b>${name} has not taken the diagnostic yet</b>, so most topics are not checked. `}Topics build on earlier ones. When an earlier topic is weak, the topics after it get harder. Start with the topics under “Fix these first”: each one unlocks several others.`,
+      `<div class="head-controls">${targetSelect(learner)}</div>`, 'Step 3 · Skill gaps') + `
+      <div class="tiles">
+        ${tile('alert', 'Fix these first', roots.length, 'weak earlier topics')}
+        ${tile('gaps', 'Also weak', others.length, 'improve after the fixes')}
+        ${tile('check', 'Ready to teach', ready.length, 'goal topics')}
+        ${tile('clock', 'Waiting', waiting.length, 'on earlier topics')}
+      </div>
+      <div class="card"><div class="card-head">${cardTitle('alert', 'Fix these first', 'Weak topics that other topics depend on')}</div>${fixFirst}</div>
+      ${alsoWeak}${goals}${map}`;
   }
 
   // ------------------------------------------------------------ teacher: outcomes
@@ -2208,6 +2328,13 @@
         break;
       }
       case 'history-more': S.historyShown += HISTORY_PAGE; render(); break;
+      case 'forecast-pick': {
+        S.forecastSkill = b.dataset.skill;
+        render();
+        const c = $('#loadCheck');
+        if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        break;
+      }
       case 'path-all': {
         S.pathAll = !S.pathAll;
         render();
