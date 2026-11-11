@@ -1072,3 +1072,26 @@ dialog.fallback[open] { position: fixed; inset: 16px; margin: auto; height: fit-
   table.stack td > select, table.stack td > .mastery-cell { flex: 0 1 60%; min-width: 0; }
   table.stack td.empty { display: block; text-align: center; }
 }
+
+/* ================================================================ path type and the post-test */
+.path-type { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 800; white-space: nowrap; }
+.path-type.adaptive { background: var(--accent-soft); color: var(--accent-strong); }
+.path-type.standard { background: #fdeee7; color: #a8461d; }
+.path-type-card { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 14px 18px; margin-bottom: 18px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); }
+.path-type-card.adaptive { border-left: 4px solid var(--series-1); }
+.path-type-card.standard { border-left: 4px solid var(--series-2); }
+.path-type-card p { font-size: 0.9rem; color: var(--ink-2); }
+.hero-type { margin-top: 10px; }
+.hero-type .path-type { background: rgba(255, 255, 255, 0.95); }
+.empty.path-done { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.empty.path-done .ic { color: var(--warning); }
+.empty.path-done p { max-width: 420px; }
+.group-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.group-col { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.group-col p { font-size: 0.86rem; color: var(--ink-2); }
+.group-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.group-key { width: 10px; height: 10px; border-radius: 3px; }
+.group-n { margin-left: auto; font-size: 0.9rem; }
+.group-steps { display: flex; flex-wrap: wrap; gap: 6px; }
+.group-steps span { font-size: 0.78rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); }
+@media (max-width: 640px) { .group-grid { grid-template-columns: minmax(0, 1fr); } }

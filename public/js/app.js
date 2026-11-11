@@ -76,7 +76,26 @@
     intrinsic: 'The topic itself is demanding', time: 'Works slower than expected', error: 'Gets many answers wrong',
     hints: 'Relies on hints', deficit: 'Weak in the earlier topics it needs'
   };
-  const GROUP_LABEL ={ adaptive: 'Adaptive', standard: 'Standard', '': 'Not in study' };
+  const GROUP_LABEL = { adaptive: 'Adaptive path', standard: 'Standard path', '': 'Not in study' };
+  /*
+   * The two kinds of learning path. Students in the study's standard group
+   * follow the course order (the comparison group); everyone else, including
+   * students not in the study, gets the adaptive path.
+   */
+  const PATH_TYPE = {
+    adaptive: {
+      label: 'Adaptive path', icon: 'path',
+      student: 'Made for you: it adds quick reviews of earlier skills you need, skips what you already know, and picks how you practise each topic.',
+      teacher: 'Personalised: adds reviews of weak earlier topics, skips what the student already knows, and matches the way of practising to the predicted cognitive load.'
+    },
+    standard: {
+      label: 'Standard path', icon: 'book',
+      student: 'The course topics in their usual order, one after another.',
+      teacher: 'The course topics in their usual order: no added reviews and no change in the way of practising. The comparison group for the study.'
+    }
+  };
+  const pathTypeOf = l => (l && l.group === 'standard' ? 'standard' : 'adaptive');
+  const pathBadge = l => { const t = pathTypeOf(l); return `<span class="path-type ${t}">${icon(PATH_TYPE[t].icon, 14)} ${PATH_TYPE[t].label}</span>`; };
   // Share of rapid guesses above which a result is flagged as possibly not reflecting ability.
   const RAPID_WARN = 0.15;
   // Practice history rows shown at first, and added by each "Show more".
@@ -520,6 +539,7 @@
 
   function studentReason(step, diagnosis) {
     if (step.kind === 'learn') return `New topic in ${C.SUBJECTS[G.byId[step.skillId].subject].name}`;
+    if (step.credited) return 'You probably know this already from later topics. A quick check confirms it.';
     if (step.kind === 'review') return `You finished this ${step.review.sinceDays} days ago. A short review keeps it from fading.`;
     const gap = diagnosis.gaps.find(g => g.id === step.skillId);
     const needs = gap ? gap.blocks.slice(0, 3).map(b => G.byId[b].short).join(', ') + (gap.blocks.length > 3 ? ' and more' : '') : '';
@@ -944,6 +964,16 @@
       <button class="btn primary" type="button" data-action="go" data-tab="posttest">Take the post-test</button></div>`;
   }
 
+  // My path with nothing left on it: what comes next.
+  function pathDone() {
+    const pt = S.data.posttest || {};
+    if (S.target) return '<div class="empty">You have finished this goal. Choose “All my subjects” above to see the rest of your path.</div>';
+    const box = (title, text, btn) => `<div class="empty path-done">${icon('star', 28)}<h3>${title}</h3><p>${text}</p>${btn}</div>`;
+    if (pt.done) return box('You finished your path and took the post-test', 'See how much you improved since your diagnostic.', `<button class="btn primary" type="button" data-action="go" data-tab="dashboard">${icon('chart', 16)} See my improvement</button>`);
+    if (pt.available) return box('You have finished your path!', `Now take the post-test (${QZ_MINUTES} minutes) to see how much you improved since your diagnostic.`, `<button class="btn primary" type="button" data-action="go" data-tab="posttest">${icon('star', 16)} Take the post-test</button>`);
+    return box('You have finished your path. Well done!', 'Your teacher will tell you when the post-test opens.', '');
+  }
+
   // Path progress toward the post-test, or the before/after result once taken.
   function progressCard(learner, analysis) {
     const res = S.data.results || {};
@@ -994,7 +1024,11 @@
     const hero = `<section class="hero">
       <div class="hero-main">
         <h2>Hi, ${esc(firstName(learner.name))}!</h2>
-        <p>${steps.length ? `Your ${learner.track ? `${esc(learner.track)} ` : ''}path has ${steps.length} steps, picked for what you already know. Take them one at a time.` : 'You have mastered every topic in your track subjects. Amazing work!'}</p>
+        <div class="hero-type">${pathBadge(learner)}</div>
+        <p>${steps.length ? (pathTypeOf(learner) === 'standard'
+          ? `Your ${learner.track ? `${esc(learner.track)} ` : ''}path has ${steps.length} topics, in the usual course order. Take them one at a time.`
+          : `Your ${learner.track ? `${esc(learner.track)} ` : ''}path has ${steps.length} steps, picked for what you already know. Take them one at a time.`)
+          : 'You have finished every topic on your path. Amazing work!'}</p>
         <div class="progress">
           <div class="progress-label"><span>${mastered} of ${seq.length} topics mastered</span><span>${pct(mastered / seq.length)}</span></div>
           <div class="progress-track"><span style="width:${(mastered / seq.length) * 100}%"></span></div>
@@ -1288,7 +1322,7 @@
      * Printing shows every step. Teachers always see the whole list.
      */
     let list;
-    if (!steps.length) list = `<div class="empty">${student ? 'You have finished your path. Well done!' : 'Nothing to schedule: the target skills are mastered.'}</div>`;
+    if (!steps.length) list = student ? pathDone() : '<div class="empty">Nothing to schedule: the target skills are mastered.</div>';
     else if (!student) list = `<ol class="pathway">${steps.map(s => fullStep(s)).join('')}</ol>`;
     else {
       const soon = steps.slice(1, PATH_SOON + 1), later = steps.slice(PATH_SOON + 1);
@@ -1302,11 +1336,11 @@
     }
 
     const controls = `<div class="row no-print head-controls">${targetSelect(learner)}<button class="btn" type="button" data-action="print" style="flex:0 0 auto">Print</button></div>`;
+    // Which kind of path this is, said up front.
+    const type = pathTypeOf(learner);
     const header = student
-      ? head('My learning path', pathway.standard ? 'Work through the topics in order. Practise each one until it feels solid.' : 'Follow the steps in order. Older skills you need come first, right before the topic that uses them.', controls)
-      : head(`Pathway for ${esc(learner.name)}`, pathway.standard
-        ? 'This learner is in the <b>standard-sequence</b> group, so they follow the course in its fixed order without remediation or load-based formats.'
-        : 'Prerequisites come first, each remediation lands just before the first target it unblocks, and the format follows the load forecast for that step.', controls, 'Step 4 · Recommend');
+      ? head('My learning path', '', controls) + `<div class="path-type-card ${type}">${pathBadge(learner)}<p>${PATH_TYPE[type].student} When every topic is complete, you take the post-test to see how much you improved.</p></div>` + postTestCallout()
+      : head(`Pathway for ${esc(learner.name)}`, `${pathBadge(learner)} ${PATH_TYPE[type].teacher}${type === 'adaptive' ? ' Weak earlier topics come right before the topic that needs them.' : ''}`, controls, 'Step 4 · Recommend');
 
     const tiles = `<div class="tiles">
         ${tile('path', student ? 'Steps on my path' : 'Steps', steps.length, `${steps.length - remed} new topics`)}
@@ -2126,12 +2160,12 @@
     const seq = seqOf(learner);
     const skillRows = seq.map(id => `<tr><td>${esc(skillName(id))}</td><td class="num">${pct(A.perSkill[id])}</td><td class="num">${pct(B.perSkill[id])}</td></tr>`).join('');
     const unverified = C.trackSkills(learner.track).filter(id => analysis.mastery[id].source === 'prior').length;
-    const legend = `<div class="legend"><span><i class="line" style="background:var(--series-1)"></i>Adaptive pathway</span><span><i class="line" style="background:var(--series-2)"></i>Standard sequence</span></div>`;
+    const legend = `<div class="legend"><span><i class="line" style="background:var(--series-1)"></i>Adaptive path</span><span><i class="line" style="background:var(--series-2)"></i>Standard path</span></div>`;
     const key = c => `<span class="key" style="background:var(${c})"></span>`;
-    return head('Compare learning outcomes',
-      'The cohort evaluation compares real pre- and post-test results between study groups. The projection replays one student’s adaptive pathway and the standard sequence through a learner model.', '', 'Step 5 · Compare') + `
+    return head('Did the adaptive path help students learn more?',
+      'Students are split into two groups. Each takes the diagnostic (pre-test), follows their path, then takes the post-test when every topic is complete. Comparing how much each group improved shows whether the adaptive path makes a difference.', '', 'Step 5 · Compare outcomes') + studyGroups() + `
       <div class="card" id="cohortCard">
-        <div class="card-head">${cardTitle('users', 'Cohort evaluation · adaptive vs standard', 'Diagnostic (pre-test) and post-test scores appear automatically. You can also type scores from paper tests.')}
+        <div class="card-head">${cardTitle('users', 'Results: adaptive vs standard', 'Diagnostic (pre-test) and post-test scores appear automatically. You can also type scores from paper tests.')}
           <div class="row no-print" style="align-items:end;flex:0 1 330px">
             <label>Track<select data-bind="cohortTrack"><option value="">All tracks</option>${TRACKS.map(t => `<option${t === S.cohortTrack ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
             <button class="btn small" type="button" data-action="export-outcomes" style="flex:0 0 auto">Export CSV</button></div></div>
@@ -2171,6 +2205,23 @@
       </div>`;
   }
 
+  // The two study groups: what each path is, and how far its students have got.
+  function studyGroups() {
+    const ls = cohort();
+    const col = (key, c) => {
+      const g = ls.filter(l => (l.group || '') === key);
+      const post = g.filter(l => l.postTest != null).length, pre = g.filter(l => l.preTest != null).length;
+      return `<div class="group-col ${key}"><div class="group-top"><span class="group-key" style="background:var(${c})"></span>${pathBadge({ group: key })}<b class="group-n">${g.length} student${g.length === 1 ? '' : 's'}</b></div>
+        <p>${PATH_TYPE[key].teacher}</p>
+        <div class="group-steps"><span>${pre} took the diagnostic</span><span>${pre - post} on their path</span><span>${post} took the post-test</span></div></div>`;
+    };
+    const out = ls.filter(l => !l.group).length;
+    return `<div class="card"><div class="card-head">${cardTitle('users', 'The two study groups', 'Each student sees which path they follow on their My path page')}
+        <button class="btn small" type="button" data-action="go" data-tab="classes">${icon('users', 14)} Assign groups</button></div>
+      <div class="group-grid">${col('adaptive', '--series-1')}${col('standard', '--series-2')}</div>
+      ${out ? `<p class="hint" style="margin-top:10px">${out} student${out === 1 ? ' is' : 's are'} not in the study. They follow the adaptive path and are left out of the comparison.</p>` : ''}</div>`;
+  }
+
   // Learners in the cohort comparison: everyone, or one track.
   const cohort = () => S.data.learners.filter(l => !S.cohortTrack || l.track === S.cohortTrack);
 
@@ -2182,13 +2233,13 @@
     const cell = v => (Number.isFinite(v) ? f1(v) : '—');
     const ng = v => (Number.isFinite(v) ? v.toFixed(2) : '—');
     const table = `<div class="table-wrap"><table>
-      <thead><tr><th>Group</th><th class="num">n</th><th class="num">Pre M (SD)</th><th class="num">Post M (SD)</th><th class="num">Gain M (SD)</th><th class="num">Normalized gain ⟨g⟩</th></tr></thead>
-      <tbody>${[['Adaptive pathway', ga, '--series-1'], ['Standard sequence', gs, '--series-2']].map(([name, g, c]) => `<tr>
+      <thead><tr><th>Group</th><th class="num">Students</th><th class="num">Pre-test, mean (SD)</th><th class="num">Post-test, mean (SD)</th><th class="num">Gain, mean (SD)</th><th class="num">Normalized gain ⟨g⟩</th></tr></thead>
+      <tbody>${[['Adaptive path', ga, '--series-1'], ['Standard path', gs, '--series-2']].map(([name, g, c]) => `<tr>
         <td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(${c});margin-right:6px"></span>${name}</td>
         <td class="num">${g.n}</td><td class="num">${cell(g.pre.mean)} (${cell(g.pre.sd)})</td><td class="num">${cell(g.post.mean)} (${cell(g.post.sd)})</td>
         <td class="num">${cell(g.gain.mean)} (${cell(g.gain.sd)})</td><td class="num">${ng(g.nGain)}</td></tr>`).join('')}</tbody></table></div>`;
     if (!cc.ready) {
-      box.innerHTML = table + '<p class="note">Statistics need at least two students with both scores in each group.</p>';
+      box.innerHTML = table + `<p class="note">Results appear once each group has at least two students with both a pre-test and a post-test (now: adaptive ${ga.n}, standard ${gs.n}). Students take the post-test when they complete their path, or open it for a whole class on the Classes page.</p>`;
       return;
     }
     const t = cc.gain;
@@ -2202,7 +2253,7 @@
         ${tile('star', 'Effect size (Hedges’ g)', cc.g.toFixed(2), `${E.effectLabel(cc.g)} effect`)}
       </div>
       ${V.gainStrip(cc.groups)}
-      <p class="note">Adaptive students gained ${f1(Math.abs(t.diff))} points ${t.diff >= 0 ? 'more' : 'less'} on average than standard-sequence students (Welch t(${f1(t.df)}) = ${t.t.toFixed(2)}, p = ${fmtP(t.p)}, g = ${cc.g.toFixed(2)}). ${preWarn}${ga.n + gs.n < 30 ? ` With ${ga.n + gs.n} students the estimate is imprecise; report the confidence interval alongside p.` : ''}</p>`;
+      <p class="note">Adaptive students gained ${f1(Math.abs(t.diff))} points ${t.diff >= 0 ? 'more' : 'less'} on average than standard-path students (Welch t(${f1(t.df)}) = ${t.t.toFixed(2)}, p = ${fmtP(t.p)}, g = ${cc.g.toFixed(2)}). ${preWarn}${ga.n + gs.n < 30 ? ` With ${ga.n + gs.n} students the estimate is imprecise; report the confidence interval alongside p.` : ''}</p>`;
   }
 
   async function updateStudentField(el) {

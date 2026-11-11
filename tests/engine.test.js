@@ -296,6 +296,31 @@ test('method check: from answers in order, the fitter recovers known BKT paramet
   assert.ok(err(m.totals.params) > err(fit), `${err(m.totals.params)} vs ${err(fit)}`);
 });
 
+test('finishing the path unlocks the post-test: topics credited from later work stay as quick checks', () => {
+  const seq = C.trackSequence('STEM');
+  const bc = C.SUBJECTS.BC.sequence;
+  // Strong practice on the last Basic Calculus topic credits its earlier topics without practising them.
+  const strong = [1, 2, 3].map(d => ({ ...att(bc[bc.length - 1], 5, 5), date: `2026-10-0${d}` }));
+  for (const group of ['adaptive', 'standard']) {
+    const a = E.analyzeLearner({ learner: { id: 'X', track: 'STEM', group }, attempts: strong, graph: G, standard: seq, model: E.PRIOR_MODEL });
+    const credited = seq.filter(id => a.mastery[id].source === 'inferred' && E.masteryStatus(a.mastery[id]) === 'mastered');
+    assert.ok(credited.length, 'some topics are credited from later work');
+    assert.equal(a.progress.complete, false, 'credited topics do not count toward the post-test');
+    credited.forEach(id => {
+      const step = a.pathway.steps.find(s => s.skillId === id);
+      assert.ok(step, `${id} stays on the ${group} path`);
+      if (group === 'adaptive') assert.deepEqual([step.kind, step.credited], ['verify', true]);
+    });
+    const x = E.explainPathway(a, G, seq, E.PRIOR_MODEL);
+    assert.equal(x.steps.length, a.pathway.steps.length, 'every step can be explained');
+  }
+  // Every topic practised to mastery: nothing left on the path, and the post-test opens.
+  const all = seq.flatMap(id => [1, 2].map(d => ({ ...att(id, 5, 5), date: `2026-10-0${d}` })));
+  const done = E.analyzeLearner({ learner: { id: 'X', track: 'STEM', group: 'adaptive' }, attempts: all, graph: G, standard: seq, model: E.PRIOR_MODEL });
+  assert.equal(done.progress.complete, true);
+  assert.equal(done.pathway.steps.length, 0);
+});
+
 test('pathway percentage: whole-number share of complete topics, with a state for each pathway', () => {
   const seq = C.SUBJECTS.CW.sequence;
   const untouched = E.traceMastery([], G).mastery;

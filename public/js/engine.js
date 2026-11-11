@@ -542,9 +542,17 @@
    * is assessed below the developing threshold, or never assessed. A root gap
    * has no gap beneath it — fixing roots first unblocks everything above.
    */
+  /*
+   * A topic stays on the path until it counts as complete for the post-test
+   * (completedTopic), and comes back while it has slipped below mastery
+   * since. A topic credited from later work but never practised is not
+   * complete: it stays as a quick check, so finishing the path always
+   * unlocks the post-test.
+   */
+  const onPath = m => masteryStatus(m) !== 'mastered' || !completedTopic(m);
+
   function diagnoseGaps(mastery, graph, standard, targets) {
-    const goal = (targets && targets.length ? targets : standard)
-      .filter(id => masteryStatus(mastery[id]) !== 'mastered');
+    const goal = (targets && targets.length ? targets : standard).filter(id => onPath(mastery[id]));
     const problemStatus = new Set(['gap', 'unverified']);
     const gapMap = {};
     const targetRows = goal.map(t => {
@@ -616,7 +624,9 @@
       pending.delete(id);
       const skill = graph.byId[id];
       const gap = gapById[id];
-      const kind = gap ? (gap.status === 'unverified' ? 'verify' : 'remediate') : 'learn';
+      // Credited from later work but never practised: a quick check confirms it.
+      const credited = !gap && masteryStatus(mastery[id]) === 'mastered';
+      const kind = gap ? (gap.status === 'unverified' ? 'verify' : 'remediate') : credited ? 'verify' : 'learn';
       const forecast = forecastLoad(id, state, graph, profile, model);
       const prereqs = skill.prereqs.map(p => ({ id: p, p: state[p].p }));
       // Enrichment suits learners who already know the skill; a light topic
@@ -625,7 +635,9 @@
       const format = kind === 'verify' ? 'verify' : lowButUnlearned ? 'optimal' : forecast.band.key;
       const activity = ACTIVITIES[format];
       let reason;
-      if (kind === 'learn') {
+      if (credited) {
+        reason = 'Target skill credited from later work but never practised: quick check to confirm';
+      } else if (kind === 'learn') {
         const fixed = [...graph.ancestors(id)].filter(a => done.has(a) && gapById[a]);
         reason = fixed.length ? `Target skill, now unblocked by ${fixed.join(', ')}` : 'Target skill';
       } else {
@@ -634,7 +646,7 @@
       const minutes = kind === 'verify'
         ? 10
         : round5(skill.minutes * (0.7 + forecast.load) * (forecast.band.key === 'overload' ? 1.2 : 1));
-      steps.push({ order: steps.length + 1, skillId: id, kind, reason, forecast, prereqs, format, formatOverride: lowButUnlearned, activity, minutes, sessions: forecast.band.key === 'overload' ? 2 : 1 });
+      steps.push({ order: steps.length + 1, skillId: id, kind, credited, reason, forecast, prereqs, format, formatOverride: lowButUnlearned, activity, minutes, sessions: forecast.band.key === 'overload' ? 2 : 1 });
       // Assume the step is completed to mastery before forecasting the next one.
       state[id] = { ...state[id], p: Math.max(state[id].p, MASTERY.mastered), source: 'assessed' };
       done.add(id);
@@ -647,7 +659,7 @@
    * remediation and no load-based change of format.
    */
   function standardPathway(mastery, graph, standard, profile, model) {
-    const steps = standard.filter(id => masteryStatus(mastery[id]) !== 'mastered').map((id, i) => ({
+    const steps = standard.filter(id => onPath(mastery[id])).map((id, i) => ({
       order: i + 1, skillId: id, kind: 'learn', reason: 'Next topic in the course sequence',
       forecast: forecastLoad(id, mastery, graph, profile, model),
       prereqs: graph.byId[id].prereqs.map(p => ({ id: p, p: mastery[p].p })),
@@ -744,6 +756,12 @@
           kind: 'why',
           student: m.source === 'assessed' ? `You are at ${pctTxt(m.p)} on this topic; 85% counts as mastered.` : 'You have not studied this topic yet.',
           teacher: `Target skill, P(mastery) = ${m.p.toFixed(2)}${m.items ? ` from ${m.items} items` : ' (no evidence yet)'}; mastered at 0.85.`
+        });
+      } else if (s.credited) {
+        reasons.push({
+          kind: 'why',
+          student: 'Your work on later topics suggests you already know this, but you have not practised it here yet. A quick check confirms it and counts it toward your post-test.',
+          teacher: `Credited from later work (P(mastery) ${m.p.toFixed(2)}, inferred) but never assessed, so not complete for the post-test: quick check.`
         });
       } else {
         const g = gapById[s.skillId];
